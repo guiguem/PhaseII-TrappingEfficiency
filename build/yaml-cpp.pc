@@ -1,0 +1,9 @@
+libdir=/Users/guig098/Work/Project8/Analysis/PhaseII-TrappingEfficiency/build/lib
+includedir=/Users/guig098/Work/Project8/Analysis/PhaseII-TrappingEfficiency/build/include
+
+Name: Yaml-cpp
+Description: A YAML parser and emitter for C++
+Version: 0.5.3
+Requires:
+Libs: -L${libdir} -lyaml-cpp
+Cflags: -I${includedir}
