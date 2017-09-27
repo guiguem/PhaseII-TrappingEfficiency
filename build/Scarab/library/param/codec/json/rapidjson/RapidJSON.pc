@@ -1,4 +1,4 @@
-includedir=/Users/guig098/Work/Project8/Analysis/PhaseII-TrappingEfficiency/build/include/Sensitivity
+includedir=/Users/guig098/Work/Project8/Analysis/PhaseII-TrappingEfficiency/build/include
 
 Name: RapidJSON
 Description: A fast JSON parser/generator for C++ with both SAX/DOM style API

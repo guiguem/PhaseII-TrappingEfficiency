@@ -53,14 +53,14 @@ endif()
 
 if("${CMAKE_INSTALL_COMPONENT}" STREQUAL "dev" OR NOT CMAKE_INSTALL_COMPONENT)
   list(APPEND CMAKE_ABSOLUTE_DESTINATION_FILES
-   "/Users/guig098/Work/Project8/Analysis/PhaseII-TrappingEfficiency/build/include/Sensitivity/rapidjson")
+   "/Users/guig098/Work/Project8/Analysis/PhaseII-TrappingEfficiency/build/include/rapidjson")
   if(CMAKE_WARN_ON_ABSOLUTE_INSTALL_DESTINATION)
     message(WARNING "ABSOLUTE path INSTALL DESTINATION : ${CMAKE_ABSOLUTE_DESTINATION_FILES}")
   endif()
   if(CMAKE_ERROR_ON_ABSOLUTE_INSTALL_DESTINATION)
     message(FATAL_ERROR "ABSOLUTE path INSTALL DESTINATION forbidden (by caller): ${CMAKE_ABSOLUTE_DESTINATION_FILES}")
   endif()
-file(INSTALL DESTINATION "/Users/guig098/Work/Project8/Analysis/PhaseII-TrappingEfficiency/build/include/Sensitivity" TYPE DIRECTORY FILES "/Users/guig098/Work/Project8/Analysis/PhaseII-TrappingEfficiency/Scarab/library/param/codec/json/rapidjson/include/rapidjson")
+file(INSTALL DESTINATION "/Users/guig098/Work/Project8/Analysis/PhaseII-TrappingEfficiency/build/include" TYPE DIRECTORY FILES "/Users/guig098/Work/Project8/Analysis/PhaseII-TrappingEfficiency/Scarab/library/param/codec/json/rapidjson/include/rapidjson")
 endif()
 
 if("${CMAKE_INSTALL_COMPONENT}" STREQUAL "examples" OR NOT CMAKE_INSTALL_COMPONENT)
