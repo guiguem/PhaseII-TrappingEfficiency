@@ -1,7 +1,0 @@
-includedir=/Users/guig098/Work/Project8/Analysis/PhaseII-TrappingEfficiency/build/include
-
-Name: RapidJSON
-Description: A fast JSON parser/generator for C++ with both SAX/DOM style API
-Version: 1.1.0
-URL: https://github.com/miloyip/rapidjson
-Cflags: -I${includedir}
