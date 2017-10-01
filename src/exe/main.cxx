@@ -5,6 +5,8 @@
 #include "TCanvas.h"
 #include "TAxis.h"
 #include "TStyle.h"
+#include "TFile.h"
+#include "TPaveText.h"
 
 #include "MagneticField.h"
 #include "TrappingEfficiency.cpp"
@@ -18,6 +20,11 @@ const double botMargin = 0.11;
 const double topMargin = 0.03;
 const double legWidth = 0.2;
 const double legHeight = 0.3;
+
+int ColorPalette(int n, int ColorNumber)
+{
+    return 51 + 48 * n / (ColorNumber - 1);
+}
 
 void SetROOTStyle()
 {
@@ -51,14 +58,15 @@ int main()
     SetROOTStyle();
 
     double cm = 0.01; //m
-    TVector3 positionSolenoid(0, 0, 0);
+    double mm = 1e-3; //m
+    // TVector3 positionSolenoid(0, 0, 0);
 
-    Solenoid solenoid(1, 1, 10, 1, positionSolenoid);
+    // Solenoid solenoid(1, 1, 10, 1, positionSolenoid);
 
     // LINFO(mainlog, solenoid.getRadialMagneticField(0.5, 0, 0));
     // LINFO(mainlog, solenoid.getLongMagneticField(0, 0, 0));
 
-    Coil coil(1, 10, 1, positionSolenoid);
+    // Coil coil(1, 10, 1, positionSolenoid);
 
     // LINFO(mainlog, coil.getRadialMagneticField(0.5, 0, 0));
     // LINFO(mainlog, coil.getLongMagneticField(0, 0, 0));
@@ -66,13 +74,18 @@ int main()
     // LINFO(mainlog, coil.getLongMagneticField(0, 0, 1));
     // LINFO(mainlog, coil.getLongMagneticFieldOnAxis(1));
 
-    double Radius = 1 * cm;
-    double distanceBetweenCoils = 8 * cm;
+    double Rmin = 0.0074;
+    double Radius = Rmin + 2 * mm;
+    // double distanceBetweenCoils = 8 * cm;
+
+    double length = 7.62 * mm;
+    double space = 14.6 * mm;
+    double distanceBetweenCoils = 4 * (length + space);
 
     TVector3 positionCoil1(0, 0, -distanceBetweenCoils / 2.);
     TVector3 positionCoil2(0, 0, distanceBetweenCoils / 2.);
 
-    Bathtub bathtub15(Radius, 50, 1, positionCoil1, positionCoil2);
+    Bathtub bathtub15(Radius, 1, 1, positionCoil1, positionCoil2);
     LDEBUG(mainlog, bathtub15.getType());
     // LINFO(mainlog, bathtub15.getLongMagneticField(0, 0, 0));
     // LINFO(mainlog, bathtub15.getLongMagneticFieldOnAxis(0));
@@ -90,6 +103,7 @@ int main()
     int nBinX = 1000;
     int nBinZ = 1000;
 
+    // --------------------------------
     LINFO(mainlog, "Creating 2D map");
     for (int iX = 0; iX < nBinX; iX++)
     {
@@ -139,36 +153,130 @@ int main()
     can->Draw();
     can->SaveAs("fieldProfile.pdf");
 
-    // TF2 *magneticMap = bathtub15.getRadialMagneticFieldMap(1);
-    // magneticMap->Draw("colz");
-    // can->SaveAs("fieldProfileTF2.pdf");
+    // ------------------------------------------------
+    LINFO(mainlog, "Optimizing current for profile");
+
+    TFile *file = new TFile("../FieldProfile.root", "OPEN");
+    auto gExactFieldProfile = (TGraph *)file->Get("Graph");
+    gExactFieldProfile->Draw("AP");
+    gExactFieldProfile->GetXaxis()->SetTitle("Position along z [cm]");
+    gExactFieldProfile->GetYaxis()->SetTitle("Magnetic field [mT]");
+    can->SaveAs("exactFieldProfile.pdf");
+
+    double xmin = gExactFieldProfile->GetXaxis()->GetXmin();
+    double xmax = gExactFieldProfile->GetXaxis()->GetXmax();
+    LDEBUG(mainlog, "xmin = " << xmin << "; xmax = " << xmax);
+
+    TF1 *f = new TF1("f", [&](double *x, double *p) { return p[0] * gExactFieldProfile->Eval(x[0] + p[1]); }, -distanceBetweenCoils * 100, distanceBetweenCoils * 100, 2);
+    f->SetParameter(0, 1);
+    f->SetParameter(1, 5);
+
+    gFieldProfile->Draw("AP");
+    gFieldProfile->Fit("f", "R");
+    can->SaveAs("fitResult.pdf");
+
+    LDEBUG(mainlog, "Number of turns required: " << 1. / f->GetParameter(0));
+    LINFO(mainlog, "Recreating bathutb object");
+    bathtub15 = Bathtub(Radius, 60, 1, positionCoil1, positionCoil2);
 
     LINFO(mainlog, "Calculating trapping efficiency");
 
     double B0Field = 1; //T
-    int nCurrent = 100;
+    int nCurrent = 20;
 
     TGraph *gTrappingEfficiencyCenter = new TGraph();
     for (int iCurrent = 0; iCurrent < nCurrent; iCurrent++)
     {
-        double current = (iCurrent + 0.01) * 2. / nCurrent;
+        double current = (iCurrent + 0.01) * 5. / nCurrent;
         bathtub15.setCurrent(current);
         double Br = bathtub15.getRadialMagneticField(0, 0, 0);
         double Bz = bathtub15.getLongMagneticField(0, 0, 0);
         double BAtPosition = TMath::Sqrt(TMath::Power(B0Field + Bz, 2) + TMath::Power(Br, 2));
         double Bmax = bathtub15.getMaxFieldAlongZ(0, 0, 0, 1.);
-        LDEBUG(mainlog, Br << "\t" << Bz);
         double cosThetaMin = TMath::Sqrt(1. - BAtPosition / Bmax);
-        gTrappingEfficiencyCenter->SetPoint(iCurrent, current, cosThetaMin);
-        // LDEBUG(mainlog, getCosThetaMin(0, 0, 1., Br, Bz));
-        // gFieldProfileAnalytic->SetPoint(iZ, z, bathtub15.getLongMagneticFieldOnAxis(z));
+        gTrappingEfficiencyCenter->SetPoint(iCurrent, current, cosThetaMin * 100);
+        std::cout << current << "\t" << cosThetaMin << std::endl;
     }
 
     TCanvas *canCurrentScan = new TCanvas("canCurrentScan", "canCurrentScan", 20, 10, 600, 400);
     canCurrentScan->SetLogy();
     canCurrentScan->SetLogx();
+    canCurrentScan->SetGridy();
+    canCurrentScan->SetGridx();
     gTrappingEfficiencyCenter->Draw("APL");
+    gTrappingEfficiencyCenter->SetLineWidth(2);
+    gTrappingEfficiencyCenter->GetXaxis()->SetRangeUser(0.02, 2.);
+    gTrappingEfficiencyCenter->GetYaxis()->SetRangeUser(0.2, 10.);
+    gTrappingEfficiencyCenter->GetXaxis()->SetTitle("Current [A]");
+    gTrappingEfficiencyCenter->GetYaxis()->SetTitle("Trapping efficiency in the center of the trap [%]");
     canCurrentScan->SaveAs("currentScan.pdf");
+
+    // ---------------------------------------------
+    LINFO(mainlog, "Profile as a function of radius");
+
+    bathtub15.setCurrent(1.);
+    TCanvas *canProfileVsRadius = new TCanvas("canProfileVsRadius", "canProfileVsRadius", 20, 10, 600, 400);
+    int NProfile = 10;
+    TGraph **gFieldProfileVsRadius = new TGraph *[NProfile];
+    for (int i = 0; i < NProfile; i++)
+    {
+        // TGraph* graph
+        gFieldProfileVsRadius[i] = new TGraph();
+        // std::cout << i << std::endl;
+        double rho = Radius * i / NProfile;
+        for (int iZ = 0; iZ < nBinZ; iZ++)
+        {
+
+            double z = -distanceBetweenCoils + 2 * distanceBetweenCoils * iZ / nBinZ;
+            // std::cout << z << std::endl;
+            gFieldProfileVsRadius[i]->SetPoint(iZ, z * 100., bathtub15.getLongMagneticField(rho, 0, z) * 1000);
+            // gFieldProfileAnalytic->SetPoint(iZ, z * 100., bathtub15.getLongMagneticFieldOnAxis(z) * 1000);
+        }
+        gFieldProfileVsRadius[i]->SetMarkerColor(ColorPalette(i, NProfile));
+        gFieldProfileVsRadius[i]->SetLineColor(ColorPalette(i, NProfile));
+        if (i == 0)
+        {
+            gFieldProfileVsRadius[i]->Draw("AL");
+            gFieldProfileVsRadius[i]->GetYaxis()->SetRangeUser(0, 10);
+            gFieldProfileVsRadius[i]->GetXaxis()->SetTitle("Position along z [cm]");
+            gFieldProfileVsRadius[i]->GetYaxis()->SetTitle("Magnetic field [mT]");
+        }
+        else
+        {
+            gFieldProfileVsRadius[i]->Draw("sameL");
+        }
+    }
+    canProfileVsRadius->SaveAs("profileVsRadius.pdf");
+
+    // ------------------------------------------------------------------
+    LINFO(mainlog, "Calculating trapping efficiency over trapping volume");
+
+    double integral = 0;
+    int nR = 500;
+    int nZ = 100;
+
+    double waveguideRadius = 6.7945 * mm;
+    bathtub15.setCurrent(1.);
+
+    for (int iR = 0; iR < nR; iR++)
+    {
+        double rho = waveguideRadius * iR / nR;
+        double Bmax = bathtub15.getMaxFieldAlongZ(rho, 0, 0, 1.);
+        // LDEBUG(mainlog, Bmax);
+        for (int iZ = 0; iZ < nZ; iZ++)
+        {
+            double z = -distanceBetweenCoils / 2. + distanceBetweenCoils * (iZ + 0.5) / nZ;
+            double Brho = bathtub15.getRadialMagneticField(rho, 0, z);
+            double Bz = bathtub15.getLongMagneticField(rho, 0, z);
+            double BAtPosition = TMath::Sqrt(TMath::Power(Brho, 2) + TMath::Power(Bz + 1, 2));
+            double cosThetaMin = TMath::Sqrt(1. - BAtPosition / Bmax);
+            // std::cout << cosThetaMin << std::endl;
+            integral += rho * cosThetaMin;
+        }
+    }
+    integral *= waveguideRadius / nR * distanceBetweenCoils / nZ;
+    integral *= 2 / (TMath::Power(waveguideRadius, 2) * distanceBetweenCoils);
+    LDEBUG(mainlog, integral);
 
     return 0;
 }
