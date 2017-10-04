@@ -56,10 +56,12 @@ message (STATUS "FFTW_LIBRARIES is ${FFTW_LIBRARIES}")
 # subdirectories
 include_directories (BEFORE 
     ${PROJECT_SOURCE_DIR}/src/MagneticField
+    ${PROJECT_SOURCE_DIR}/src/Toolbox
     ${PROJECT_SOURCE_DIR}/src/Trapping
     ${PROJECT_SOURCE_DIR}/src/exe
 )
 add_subdirectory (src/MagneticField)
+add_subdirectory (src/Toolbox)
 add_subdirectory (src/Trapping)
 add_subdirectory (src/exe)
 

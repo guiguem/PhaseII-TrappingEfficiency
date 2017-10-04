@@ -14,19 +14,19 @@
 #include "logger.hh"
 LOGGER(mainlog, "Main");
 
-const double rightMargin = 0.02;
-const double leftMargin = 0.09;
-const double botMargin = 0.11;
-const double topMargin = 0.03;
-const double legWidth = 0.2;
-const double legHeight = 0.3;
+// const double rightMargin = 0.02;
+// const double leftMargin = 0.09;
+// const double botMargin = 0.11;
+// const double topMargin = 0.03;
+// const double legWidth = 0.2;
+// const double legHeight = 0.3;
 
 int ColorPalette(int n, int ColorNumber)
 {
     return 51 + 48 * n / (ColorNumber - 1);
 }
 
-void SetROOTStyle()
+void SetROOTStyle(double rightMargin = 0.02, double leftMargin = 0.09, double botMargin = 0.11, double topMargin = 0.06)
 {
 
     // TStyle *gStyle = new TStyle();
@@ -37,14 +37,11 @@ void SetROOTStyle()
     gStyle->SetStatW(0.2);
     gStyle->SetStatH(0.2);
     gStyle->SetLabelOffset(0, "xy");
-    gStyle->SetLabelSize(0.05, "xy");
+    gStyle->SetLabelSize(0.05, "xyz");
     gStyle->SetTitleOffset(0.9, "y");
-    gStyle->SetTitleSize(0.05, "y");
-    gStyle->SetLabelSize(0.05, "y");
-    gStyle->SetLabelOffset(0, "y");
-    gStyle->SetTitleSize(0.05, "x");
-    gStyle->SetLabelSize(0.05, "x");
     gStyle->SetTitleOffset(1.02, "x");
+    gStyle->SetTitleSize(0.05, "xyz");
+    // gStyle->SetTitleSize(0.05, "x");
     gStyle->SetPadRightMargin(rightMargin);
     gStyle->SetPadTopMargin(topMargin);
     gStyle->SetPadBottomMargin(botMargin);
@@ -126,18 +123,22 @@ int main()
     }
 
     LINFO(mainlog, "Drawing");
+    SetROOTStyle(0.15);
     TCanvas *can = new TCanvas("can", "can", 20, 10, 600, 400);
     gLongFieldMap->Draw("colz");
+    gLongFieldMap->SetTitle("");
     gCoilPosition->Draw("sameP");
     gCoilPosition->SetMarkerStyle(20);
     can->Draw();
     can->SaveAs("longFieldMap.pdf");
     // TCanvas *can = new TCanvas("can", "can", 20, 10, 600, 400);
     gRadialFieldMap->Draw("colz");
+    gRadialFieldMap->SetTitle("");
     gCoilPosition->Draw("sameP");
     gCoilPosition->SetMarkerStyle(20);
     can->Draw();
     can->SaveAs("radialFieldMap.pdf");
+    SetROOTStyle();
 
     // TCanvas *can = new TCanvas("can", "can", 20, 10, 600, 400);
     gFieldProfile->GetXaxis()->SetRangeUser(-distanceBetweenCoils * 100, distanceBetweenCoils * 100);
@@ -195,7 +196,6 @@ int main()
         double Bmax = bathtub15.getMaxFieldAlongZ(0, 0, 0, 1.);
         double cosThetaMin = TMath::Sqrt(1. - BAtPosition / Bmax);
         gTrappingEfficiencyCenter->SetPoint(iCurrent, current, cosThetaMin * 100);
-        std::cout << current << "\t" << cosThetaMin << std::endl;
     }
 
     TCanvas *canCurrentScan = new TCanvas("canCurrentScan", "canCurrentScan", 20, 10, 600, 400);
@@ -222,13 +222,11 @@ int main()
     {
         // TGraph* graph
         gFieldProfileVsRadius[i] = new TGraph();
-        // std::cout << i << std::endl;
         double rho = Radius * i / NProfile;
         for (int iZ = 0; iZ < nBinZ; iZ++)
         {
 
             double z = -distanceBetweenCoils + 2 * distanceBetweenCoils * iZ / nBinZ;
-            // std::cout << z << std::endl;
             gFieldProfileVsRadius[i]->SetPoint(iZ, z * 100., bathtub15.getLongMagneticField(rho, 0, z) * 1000);
             // gFieldProfileAnalytic->SetPoint(iZ, z * 100., bathtub15.getLongMagneticFieldOnAxis(z) * 1000);
         }
@@ -252,31 +250,73 @@ int main()
     LINFO(mainlog, "Calculating trapping efficiency over trapping volume");
 
     double integral = 0;
+    double integralThetaMax = 0;
     int nR = 500;
     int nZ = 100;
 
     double waveguideRadius = 6.7945 * mm;
+    double mainFieldValue = 1.; //T
+    double KE = 18e3;           //eV
     bathtub15.setCurrent(1.);
+
+    TGraph2D *gTrappingEfficiencyMap = new TGraph2D();
+    TGraph *gCosThetaMinProfile = new TGraph();
+    TGraph *gCosThetaMaxProfile = new TGraph();
 
     for (int iR = 0; iR < nR; iR++)
     {
         double rho = waveguideRadius * iR / nR;
         double Bmax = bathtub15.getMaxFieldAlongZ(rho, 0, 0, 1.);
         // LDEBUG(mainlog, Bmax);
+        double z = 0;
+        double Brho = bathtub15.getRadialMagneticField(rho, 0, z);
+        double Bz = bathtub15.getLongMagneticField(rho, 0, z);
+        double BAtPosition = TMath::Sqrt(TMath::Power(Brho, 2) + TMath::Power(Bz + mainFieldValue, 2));
+        double cosThetaMin = getCosThetaMin(rho, z, mainFieldValue, Brho, Bz, Bmax);
+        double cosThetaMax = getCosThetaMax(rho, z, mainFieldValue, Brho, Bz, KE, waveguideRadius);
+        gCosThetaMinProfile->SetPoint(iR, rho * 100, cosThetaMin);
+        gCosThetaMaxProfile->SetPoint(iR, rho * 100, cosThetaMax);
+
         for (int iZ = 0; iZ < nZ; iZ++)
         {
-            double z = -distanceBetweenCoils / 2. + distanceBetweenCoils * (iZ + 0.5) / nZ;
-            double Brho = bathtub15.getRadialMagneticField(rho, 0, z);
-            double Bz = bathtub15.getLongMagneticField(rho, 0, z);
-            double BAtPosition = TMath::Sqrt(TMath::Power(Brho, 2) + TMath::Power(Bz + 1, 2));
-            double cosThetaMin = TMath::Sqrt(1. - BAtPosition / Bmax);
-            // std::cout << cosThetaMin << std::endl;
-            integral += rho * cosThetaMin;
+            z = -distanceBetweenCoils / 2. + distanceBetweenCoils * (iZ + 0.5) / nZ;
+            Brho = bathtub15.getRadialMagneticField(rho, 0, z);
+            Bz = bathtub15.getLongMagneticField(rho, 0, z);
+            BAtPosition = TMath::Sqrt(TMath::Power(Brho, 2) + TMath::Power(Bz + mainFieldValue, 2));
+            cosThetaMin = getCosThetaMin(rho, z, mainFieldValue, Brho, Bz, Bmax);
+            cosThetaMax = getCosThetaMax(rho, z, mainFieldValue, Brho, Bz, KE, waveguideRadius);
+            // double cosThetaMin = TMath::Sqrt(1. - BAtPosition / Bmax);
+            integralThetaMax += rho * TMath::Max(cosThetaMin - cosThetaMax, 0.);
+            integral += rho * TMath::Max(cosThetaMin, 0.);
+            gTrappingEfficiencyMap->SetPoint(iZ + iR * nZ, rho * 100, z * 100, TMath::Max(cosThetaMin - cosThetaMax, 0.) * 100.);
         }
     }
     integral *= waveguideRadius / nR * distanceBetweenCoils / nZ;
     integral *= 2 / (TMath::Power(waveguideRadius, 2) * distanceBetweenCoils);
-    LDEBUG(mainlog, integral);
+    integralThetaMax *= waveguideRadius / nR * distanceBetweenCoils / nZ;
+    integralThetaMax *= 2 / (TMath::Power(waveguideRadius, 2) * distanceBetweenCoils);
+    LDEBUG(mainlog, "Trapping efficiency: " << integral);
+    LDEBUG(mainlog, "Trapping efficiency including wall effects: " << integralThetaMax);
+    SetROOTStyle(0.15);
+
+    TCanvas *canTrapEff = new TCanvas("canTrapEff", "canTrapEff", 20, 10, 600, 400);
+    gTrappingEfficiencyMap->GetXaxis()->SetTitle("Radial position [cm]");
+    gTrappingEfficiencyMap->GetXaxis()->SetRangeUser(0., waveguideRadius * 100);
+    gTrappingEfficiencyMap->GetYaxis()->SetTitle("Longitudinal position [cm]");
+    gTrappingEfficiencyMap->GetZaxis()->SetTitle("Trapping efficiency [%]");
+    gTrappingEfficiencyMap->Draw("PCol");
+    canTrapEff->Draw();
+    canTrapEff->SaveAs("trappingEfficiencyMap.pdf");
+
+    SetROOTStyle();
+    gCosThetaMaxProfile->Draw("AL");
+    gCosThetaMaxProfile->GetXaxis()->SetTitle("Radius [cm]");
+    gCosThetaMaxProfile->GetYaxis()->SetTitle("cos#theta ");
+    gCosThetaMaxProfile->SetLineWidth(2);
+    gCosThetaMaxProfile->SetLineColor(2);
+    gCosThetaMinProfile->Draw("sameL");
+    gCosThetaMinProfile->SetLineWidth(2);
+    canTrapEff->SaveAs("trappingEfficiencyProfile.pdf");
 
     return 0;
 }
