@@ -300,6 +300,7 @@ int main()
     SetROOTStyle(0.15);
 
     TCanvas *canTrapEff = new TCanvas("canTrapEff", "canTrapEff", 20, 10, 600, 400);
+    gTrappingEfficiencyMap->SetTitle("");
     gTrappingEfficiencyMap->GetXaxis()->SetTitle("Radial position [cm]");
     gTrappingEfficiencyMap->GetXaxis()->SetRangeUser(0., waveguideRadius * 100);
     gTrappingEfficiencyMap->GetYaxis()->SetTitle("Longitudinal position [cm]");
